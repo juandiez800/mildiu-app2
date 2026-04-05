@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Riesgo Mildiu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background: #f0f2f5;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🍇 Riesgo Mildiu</h1>
+
+<div id="riesgo-5dias"></div>
+
+<script>
+/* =========================
+   CONFIGURACIÓN
+========================= */
+
+// 👉 PON AQUÍ TU API KEY
+const API_KEY = "ddb12166-d5ae-441d-9695-78446682c8a2";
+
+// 👉 COORDENADAS TREBUJENA
+const LAT = 36.87;
+const LON = -6.18;
+
+
+/* =========================
+   FUNCIONES
+========================= */
+
+// 🌧️ Lluvia acumulada (2 días)
+function lluviaAcumulada(forecast, i) {
+  const hoy = forecast.daily[i].rain || 0;
+  const ayer = i > 0 ? (forecast.daily[i - 1].rain || 0) : 0;
+  return hoy + (ayer * 0.5);
+}
+
+// 🎯 Riesgo
+function riesgoNivel(lluvia, humedad = 0) {
+  let nivel = "Bajo";
+  let color = "#2e7d32";
+
+  if (lluvia > 10) {
+    nivel = "Alto";
+    color = "#c62828";
+  } else if (lluvia >= 2) {
+    nivel = "Medio";
+    color = "#f9a825";
+  }
+
+  // ajuste humedad
+  if (humedad > 92) {
+    nivel = "Alto";
+    color = "#c62828";
+  } else if (humedad > 85) {
+    if (nivel === "Bajo") {
+      nivel = "Medio";
+      color = "#f9a825";
+    } else if (nivel === "Medio") {
+      nivel = "Alto";
+      color = "#c62828";
+    }
+  }
+
+  return { nivel, color };
+}
+
+// 📅 Día bonito
+function diaBonito(i) {
+  if (i === 0) return "Hoy";
+  if (i === 1) return "Mañana";
+
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + i);
+
+  const meses = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  return `${fecha.getDate()} ${meses[fecha.getMonth()]}`;
+}
+
+// ⚠️ Alerta tratamiento
+function alertaTratamiento(forecast) {
+  const lluviaManana = forecast.daily[1].rain || 0;
+
+  if (lluviaManana > 10) {
+    return `
+      <div style="
+        background:#c62828;
+        color:white;
+        padding:12px;
+        border-radius:10px;
+        margin-bottom:10px;
+        font-weight:bold;
+        text-align:center;
+      ">
+        ⚠️ Prevenir tratamiento mañana
+      </div>
+    `;
+  }
+  return "";
+}
+
+// 📱 Pintar UI
+function pintarRiesgoVertical(forecast, humedadActual) {
+  let html = "";
+
+  html += alertaTratamiento(forecast);
+
+  for (let i = 0; i < 5; i++) {
+    const lluvia = lluviaAcumulada(forecast, i);
+    const riesgo = riesgoNivel(lluvia, humedadActual);
+
+    html += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        padding:14px;
+        margin:8px 0;
+        border-radius:14px;
+        background:white;
+        box-shadow:0 2px 6px rgba(0,0,0,0.08);
+      ">
+        <div style="font-size:14px; font-weight:600;">
+          ${diaBonito(i)}
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="
+            width:14px;
+            height:14px;
+            border-radius:50%;
+            background:${riesgo.color};
+          "></span>
+
+          <span style="
+            font-size:14px;
+            font-weight:700;
+            color:${riesgo.color};
+          ">
+            ${riesgo.nivel}
+          </span>
+
+          ${
+            lluvia > 0
+              ? `<span style="font-size:12px; color:#666;">🌧️ ${lluvia.toFixed(1)} mm</span>`
+              : ""
+          }
+
+          <span style="font-size:12px; color:#999;">
+            🌫️ ${humedadActual}%
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById("riesgo-5dias").innerHTML = html;
+}
+
+
+/* =========================
+   DATOS
+========================= */
+
+async function cargarDatos() {
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/onecall?lat=${LAT}&lon=${LON}&exclude=minutely,hourly&units=metric&appid=${API_KEY}`
+    );
+
+    const data = await res.json();
+
+    const forecast = data;
+    const humedadActual = data.current.humidity;
+
+    pintarRiesgoVertical(forecast, humedadActual);
+
+  } catch (error) {
+    document.getElementById("riesgo-5dias").innerHTML = "Error al cargar datos";
+  }
+}
+
+// ▶️ INICIAR
+cargarDatos();
+
+</script>
+
+</body>
+</html>
